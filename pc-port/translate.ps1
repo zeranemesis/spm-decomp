@@ -26,7 +26,7 @@ $FunctionsDir = Join-Path $GeneratedRoot "functions"
 $BaseMetadata = Join-Path $GeneratedRoot "base_translation_output.json"
 $BaseManifestDir = Join-Path $PortRoot "build\base"
 $ShardsDir = Join-Path $GeneratedRoot "build_shards"
-$NativeSourceDir = Join-Path $WiiCompiled "runtime\src"
+$NativeSourceDir = Join-Path $PortRoot "runtime\native"
 
 if (-not (Test-Path $MainDol)) {
     throw "Missing main.dol: $MainDol"
@@ -55,6 +55,7 @@ New-Item -ItemType Directory -Force -Path $GeneratedRoot | Out-Null
 New-Item -ItemType Directory -Force -Path $FunctionsDir | Out-Null
 New-Item -ItemType Directory -Force -Path $BaseManifestDir | Out-Null
 New-Item -ItemType Directory -Force -Path $ShardsDir | Out-Null
+New-Item -ItemType Directory -Force -Path $NativeSourceDir | Out-Null
 
 python (Join-Path $PortRoot "scripts\make_function_map.py") --output $FunctionMap
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
