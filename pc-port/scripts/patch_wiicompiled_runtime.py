@@ -163,6 +163,22 @@ def patch_mkw_direct_guest_calls(root: Path) -> dict[str, int]:
         'return; /* SPM bootstrap: MKW AX fallback target disabled. */',
     )
 
+    dynamic_aspect = root / "runtime" / "src" / "dynamic_aspect.cpp"
+    counts["dynamic aspect ApplyEggScreenRecords"] = replace_all_optional(
+        dynamic_aspect,
+        'void ApplyEggScreenRecords(uint32_t surfaceWidth, uint32_t surfaceHeight) {\n',
+        'void ApplyEggScreenRecords(uint32_t surfaceWidth, uint32_t surfaceHeight) {\n'
+        '    (void)surfaceWidth;\n'
+        '    (void)surfaceHeight;\n'
+        '    return; // SPM bootstrap: MKW EGG::Screen addresses are title-specific.\n',
+    )
+    counts["dynamic aspect offscreen bypass"] = replace_all_optional(
+        dynamic_aspect,
+        'void AssertMkwOffscreenScreenBypass() {\n',
+        'void AssertMkwOffscreenScreenBypass() {\n'
+        '    return; // SPM bootstrap: MKW gfx-list addresses are title-specific.\n',
+    )
+
     network = root / "runtime" / "src" / "hle" / "net" / "network_config.cpp"
     counts["network declarations"] = replace_all_optional(
         network,
