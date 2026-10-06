@@ -30,7 +30,7 @@ No Nintendo binaries or copyrighted game assets belong in this repository. The u
 - [x] Add conversion of decomp symbols to a WiiCompiled function map.
 - [x] Add reproducible WiiCompiled bootstrap.
 - [ ] Translate the EU0 `main.dol`.
-- [ ] Pre-relocate and translate `relF.rel`.
+- [ ] Pre-relocate and translate `relF.rel` (its relocated prologue is seeded as a second translation entry point).
 - [ ] Produce a native executable that reaches the original entry point.
 - [ ] Reach the first rendered frame.
 - [ ] Reach the title screen with PC input.
