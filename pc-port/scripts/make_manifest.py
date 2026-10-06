@@ -131,6 +131,10 @@ def main() -> int:
     if rel_end > MEMORY_BASE + memory_size:
         raise SystemExit("REL does not fit in configured guest memory")
 
+    entry_points_yaml = f"    - 0x{entry:08X}\n"
+    if rel_prolog is not None:
+        entry_points_yaml += f"    - 0x{rel_prolog:08X}\n"
+
     # Paths below are relative to pc-port/vendor/Wiicompiled (workspace_root).
     manifest = f"""schema_version: 1
 workspace_root: ../vendor/Wiicompiled
@@ -154,8 +158,7 @@ inputs:
 
 translation:
   entry_points:
-    - 0x{entry:08X}
-{"" if rel_prolog is None else f"    - 0x{rel_prolog:08X}\n"}  function_map:
+{entry_points_yaml}  function_map:
     path: ../../generated/SPM.map
   allow_unsupported_instructions: false
 
