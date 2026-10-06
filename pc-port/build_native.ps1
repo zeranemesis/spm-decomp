@@ -53,6 +53,11 @@ Copy-Item -Force (Join-Path $GeneratedRoot "RuntimeConfig.h") $RuntimeGenerated
 Copy-Item -Force (Join-Path $GeneratedRoot "data_sections_init.cpp") $RuntimeGenerated
 Copy-Item -Force (Join-Path $GeneratedRoot "guest_symbol_table.cpp") $RuntimeGenerated
 
+Write-Host ""
+Write-Host "Applying SPM-specific runtime bootstrap patches..."
+python (Join-Path $PortRoot "scripts\patch_wiicompiled_runtime.py") $WiiCompiled
+if ($LASTEXITCODE -ne 0) { throw "SPM runtime patching failed with exit code $LASTEXITCODE" }
+
 . (Join-Path $WiiCompiled "Launcher\NativeBuildFlags.ps1")
 
 $CMake = Join-Path $PortableTools "CMake\bin\cmake.exe"
