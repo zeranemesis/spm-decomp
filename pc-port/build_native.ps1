@@ -19,6 +19,7 @@ foreach ($required in @(
     (Join-Path $GeneratedRoot "RuntimeConfig.h"),
     (Join-Path $GeneratedRoot "data_sections_init.cpp"),
     (Join-Path $GeneratedRoot "guest_symbol_table.cpp"),
+    (Join-Path $GeneratedRoot "data_sections_init_blobs.S"),
     $ShardManifest,
     (Join-Path $WiiCompiled "runtime\CMakeLists.txt"),
     (Join-Path $WiiCompiled "Launcher\Prepare-PortableTools.ps1"),
@@ -52,6 +53,7 @@ New-Item -ItemType Directory -Force -Path $RuntimeGenerated | Out-Null
 Copy-Item -Force (Join-Path $GeneratedRoot "RuntimeConfig.h") $RuntimeGenerated
 Copy-Item -Force (Join-Path $GeneratedRoot "data_sections_init.cpp") $RuntimeGenerated
 Copy-Item -Force (Join-Path $GeneratedRoot "guest_symbol_table.cpp") $RuntimeGenerated
+Copy-Item -Force (Join-Path $GeneratedRoot "data_sections_init_blobs.S") $RuntimeGenerated
 
 Write-Host ""
 Write-Host "Applying SPM-specific runtime bootstrap patches..."
