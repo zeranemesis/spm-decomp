@@ -6,7 +6,6 @@ param(
 
 $ErrorActionPreference = "Stop"
 $PortRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$RepoRoot = Split-Path -Parent $PortRoot
 
 if ([string]::IsNullOrWhiteSpace($MainDol)) {
     $MainDol = Join-Path $PortRoot "game\main.dol"
