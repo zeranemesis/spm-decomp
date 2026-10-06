@@ -50,16 +50,16 @@ Write-Host "Starting SPM static translation from $Entry"
 
 Push-Location $WiiCompiled
 try {
-    dotnet $Translator translate-recursive $Entry --project $Manifest --prune-stale
+    dotnet $Translator translate-recursive $Entry --project $Manifest --outdir $FunctionsDir --output-metadata $BaseMetadata --prune-stale
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     dotnet $Translator generate-data-init --project $Manifest
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-    dotnet $Translator emit-base-manifest --project $Manifest
+    dotnet $Translator emit-base-manifest --project $Manifest --out $BaseManifestDir --functions-dir $FunctionsDir --translation-output-metadata $BaseMetadata
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-    dotnet $Translator emit-build-shards --project $Manifest
+    dotnet $Translator emit-build-shards --project $Manifest --base-metadata $BaseMetadata --base-functions-dir $FunctionsDir --native-source-dir $NativeSourceDir --out $ShardsDir
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 finally {
