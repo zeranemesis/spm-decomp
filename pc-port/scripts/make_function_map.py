@@ -55,7 +55,7 @@ def main() -> int:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("w", encoding="utf-8", newline="\n") as f:
         for address, name in sorted(functions.items()):
-            f.write(f"0x{address:08X} {name}\n")
+            f.write(f"{address:08X} {name}\n")
 
     print(f"Wrote {len(functions):,} function boundaries to {args.output}")
     return 0
