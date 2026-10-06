@@ -129,6 +129,16 @@ def patch_mkw_direct_guest_calls(root: Path) -> dict[str, int]:
         '(void)ctx; /* SPM bootstrap: MKW StaticR prolog target disabled. */',
     )
 
+    # PPCMfhid2 is explicitly registered as a translated function at the MKW-only
+    # guest address 0x8012E630. In SPM, that address is a basic block inside an
+    # unrelated translated function, so keeping this registration corrupts the
+    # generated indirect-dispatch registry and aborts before boot.
+    counts["os_init PPCMfhid2 registration"] = replace_all_optional(
+        init,
+        'REGISTER_TRANSLATED_FUNCTION(0x8012e630, PPCMfhid2_HLE_8012e630);',
+        '// SPM bootstrap: MKW PPCMfhid2 address registration disabled.',
+    )
+
     scheduler = root / "runtime" / "src" / "hle" / "os" / "os_scheduler.cpp"
     counts["scheduler declaration"] = replace_all_optional(
         scheduler,
