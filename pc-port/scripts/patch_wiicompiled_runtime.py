@@ -89,6 +89,71 @@ inline constexpr uint32_t kDefaultEntryAddress = 0x80006124u;
     )
 
 
+def patch_spm_pi_mmio(root: Path) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    path = root / "runtime" / "src" / "memory.cpp"
+
+    counts["memory PI read32"] = replace_all_optional(
+        path,
+        '''uint32_t MemoryInline::Read32Slow(uint32_t addr) {
+    if (IsMmioAddress(addr)) {
+        ThrowMmioReadBlocked(addr, sizeof(uint32_t));
+    }
+''',
+        '''uint32_t MemoryInline::Read32Slow(uint32_t addr) {
+    // SPM bootstrap: emulate the Broadway PI interrupt cause/mask registers.
+    // 0xCC003000 = PI interrupt cause, 0xCC003004 = PI interrupt mask.
+    // Returning the host-side mask and an empty cause is sufficient until
+    // title-specific interrupt delivery is wired up.
+    if (addr == 0xCC003000u) {
+        return 0;
+    }
+    if (addr == 0xCC003004u) {
+        static std::atomic<uint32_t> spmPiInterruptMask{0};
+        return spmPiInterruptMask.load(std::memory_order_relaxed);
+    }
+    if (IsMmioAddress(addr)) {
+        ThrowMmioReadBlocked(addr, sizeof(uint32_t));
+    }
+''',
+    )
+
+    counts["memory PI write32"] = replace_all_optional(
+        path,
+        '''void MemoryInline::Write32Slow(uint32_t addr, uint32_t val) {
+    if (IsGpuFifoAddress(addr)) {
+        GX_HLE_FIFO_Write32(val);
+        return;
+    }
+    if (IsMmioAddress(addr)) {
+        throw Memory::AccessViolation(addr, sizeof(val), "MMIO write blocked (non-GPU)");
+    }
+''',
+        '''void MemoryInline::Write32Slow(uint32_t addr, uint32_t val) {
+    if (IsGpuFifoAddress(addr)) {
+        GX_HLE_FIFO_Write32(val);
+        return;
+    }
+    // SPM bootstrap: PI interrupt-mask writes happen during very early OS init,
+    // before the title-specific OS HLE hooks are active. Keep a lightweight
+    // shadow instead of treating this known PI register as fatal MMIO.
+    if (addr == 0xCC003004u) {
+        static std::atomic<uint32_t> spmPiInterruptMask{0};
+        spmPiInterruptMask.store(val, std::memory_order_relaxed);
+        return;
+    }
+    if (addr == 0xCC003000u) {
+        return; // acknowledge/clear cause while no real PI interrupt source exists
+    }
+    if (IsMmioAddress(addr)) {
+        throw Memory::AccessViolation(addr, sizeof(val), "MMIO write blocked (non-GPU)");
+    }
+''',
+    )
+
+    return counts
+
+
 def patch_mkw_direct_guest_calls(root: Path) -> dict[str, int]:
     counts: dict[str, int] = {}
 
@@ -213,6 +278,7 @@ def main() -> int:
     print(f"system_bridge.h:  {patch_entry(root)}")
 
     counts = patch_mkw_direct_guest_calls(root)
+    counts.update(patch_spm_pi_mmio(root))
     for name, count in counts.items():
         print(f"{name:28s}: {count} replacement(s)")
 
