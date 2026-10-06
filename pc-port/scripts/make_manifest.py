@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import math
 import struct
 from pathlib import Path
 
@@ -22,7 +21,7 @@ def parse_int(text: str) -> int:
     return int(text, 0)
 
 
-def rel_footprint(path: Path) -> tuple[int, int]:
+def inspect_rel(path: Path) -> dict:
     data = path.read_bytes()
     if len(data) < 0x4C:
         raise ValueError("REL is too small")
@@ -30,20 +29,49 @@ def rel_footprint(path: Path) -> tuple[int, int]:
     num_sections = struct.unpack_from(">I", data, 0x0C)[0]
     section_info = struct.unpack_from(">I", data, 0x10)[0]
     bss_size = struct.unpack_from(">I", data, 0x20)[0]
+    prolog_section = data[0x30]
+    prolog_offset = struct.unpack_from(">I", data, 0x34)[0]
 
     if not 0 < num_sections < 4096:
         raise ValueError(f"implausible REL section count: {num_sections}")
     if section_info + num_sections * 8 > len(data):
         raise ValueError("REL section table extends past EOF")
 
+    sections = []
     max_file_end = 0
     for i in range(num_sections):
         off_flags, size = struct.unpack_from(">II", data, section_info + i * 8)
         file_off = off_flags & ~3
+        executable = bool(off_flags & 1)
+        sections.append((file_off, size, executable))
         if file_off:
             max_file_end = max(max_file_end, file_off + size)
 
-    return max(len(data), max_file_end), bss_size
+    return {
+        "file_size": max(len(data), max_file_end),
+        "bss_size": bss_size,
+        "sections": sections,
+        "prolog_section": prolog_section,
+        "prolog_offset": prolog_offset,
+    }
+
+
+def relocated_rel_prolog(rel: dict, load_address: int) -> int | None:
+    section = rel["prolog_section"]
+    if section == 0xFF:
+        return None
+    if section >= len(rel["sections"]):
+        raise ValueError(f"REL prolog section {section} is out of range")
+
+    file_off, size, executable = rel["sections"][section]
+    offset = rel["prolog_offset"]
+    if not executable:
+        raise ValueError("REL prolog points to a non-executable section")
+    if offset >= size:
+        raise ValueError("REL prolog offset is outside its section")
+
+    # WiiCompiled's relocated REL image maps section bytes at load_base + file_offset.
+    return load_address + file_off + offset
 
 
 def main() -> int:
@@ -83,7 +111,9 @@ def main() -> int:
         )
 
     dol = Dol(args.dol.read_bytes())
-    rel_file_size, rel_bss_size = rel_footprint(args.rel)
+    rel_info = inspect_rel(args.rel)
+    rel_file_size = rel_info["file_size"]
+    rel_bss_size = rel_info["bss_size"]
 
     # Translation-only deterministic placement. Runtime work must reserve this range
     # and bypass/replace the original dynamic OSLink path.
@@ -91,6 +121,7 @@ def main() -> int:
     if rel_load is None:
         rel_load = align_up(dol.static_end + 0x10000, 0x10000)
 
+    rel_prolog = relocated_rel_prolog(rel_info, rel_load)
     rel_end = rel_load + rel_file_size + rel_bss_size
     memory_end = max(dol.static_end, rel_end) + 0x100000
     memory_size = max(0x01800000, align_up(memory_end - MEMORY_BASE, 0x100000))
@@ -124,7 +155,7 @@ inputs:
 translation:
   entry_points:
     - 0x{entry:08X}
-  function_map:
+{"" if rel_prolog is None else f"    - 0x{rel_prolog:08X}\n"}  function_map:
     path: ../../generated/SPM.map
   allow_unsupported_instructions: false
 
@@ -149,6 +180,10 @@ output:
     print(f"SDA r13    = 0x{sda:08X}")
     print(f"SDA2 r2    = 0x{sda2:08X}")
     print(f"REL base   = 0x{rel_load:08X} (translation placement)")
+    print(
+        "REL prolog = "
+        + ("none" if rel_prolog is None else f"0x{rel_prolog:08X}")
+    )
     print(f"memory     = 0x{MEMORY_BASE:08X}+0x{memory_size:X}")
     return 0
 
