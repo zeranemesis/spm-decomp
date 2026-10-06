@@ -101,16 +101,17 @@ def patch_spm_pi_mmio(root: Path) -> dict[str, int]:
     }
 ''',
         '''uint32_t MemoryInline::Read32Slow(uint32_t addr) {
-    // SPM bootstrap: emulate the Broadway PI interrupt cause/mask registers.
-    // 0xCC003000 = PI interrupt cause, 0xCC003004 = PI interrupt mask.
-    // Returning the host-side mask and an empty cause is sufficient until
-    // title-specific interrupt delivery is wired up.
-    if (addr == 0xCC003000u) {
+    // SPM bootstrap: emulate the early interrupt-controller registers touched
+    // before title-specific OS HLE is active.
+    // Broadway PI:      0xCC003000 cause, 0xCC003004 mask.
+    // Hollywood PPC:   0xCD000030 IRQ flags, 0xCD000034 IRQ mask.
+    // Until real interrupt delivery is wired up, report no pending IRQs and
+    // expose zero/default masks rather than treating these known registers as fatal.
+    if (addr == 0xCC003000u || addr == 0xCD000030u) {
         return 0;
     }
-    if (addr == 0xCC003004u) {
-        static std::atomic<uint32_t> spmPiInterruptMask{0};
-        return spmPiInterruptMask.load(std::memory_order_relaxed);
+    if (addr == 0xCC003004u || addr == 0xCD000034u) {
+        return 0;
     }
     if (IsMmioAddress(addr)) {
         ThrowMmioReadBlocked(addr, sizeof(uint32_t));
@@ -134,16 +135,16 @@ def patch_spm_pi_mmio(root: Path) -> dict[str, int]:
         GX_HLE_FIFO_Write32(val);
         return;
     }
-    // SPM bootstrap: PI interrupt-mask writes happen during very early OS init,
-    // before the title-specific OS HLE hooks are active. Keep a lightweight
-    // shadow instead of treating this known PI register as fatal MMIO.
-    if (addr == 0xCC003004u) {
-        static std::atomic<uint32_t> spmPiInterruptMask{0};
-        spmPiInterruptMask.store(val, std::memory_order_relaxed);
+    // SPM bootstrap: these interrupt-controller writes occur during very early
+    // OS init, before title-specific HLE hooks are active. Swallow the known
+    // mask/ack writes until host-side interrupt delivery is implemented.
+    if (addr == 0xCC003004u || addr == 0xCD000034u) {
+        (void)val;
         return;
     }
-    if (addr == 0xCC003000u) {
-        return; // acknowledge/clear cause while no real PI interrupt source exists
+    if (addr == 0xCC003000u || addr == 0xCD000030u) {
+        (void)val;
+        return; // acknowledge/clear cause/flags while no real source exists
     }
     if (IsMmioAddress(addr)) {
         throw Memory::AccessViolation(addr, sizeof(val), "MMIO write blocked (non-GPU)");
