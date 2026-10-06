@@ -1,3 +1,7 @@
+param(
+    [switch]$SkipTests
+)
+
 $ErrorActionPreference = "Stop"
 
 $PortRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -17,7 +21,9 @@ try {
     git checkout $PinnedRef
 
     dotnet build translator/Translator.sln -c Release
-    dotnet test translator/Translator.sln -c Release --no-build
+    if (-not $SkipTests) {
+        dotnet test translator/Translator.sln -c Release --no-build
+    }
 }
 finally {
     Pop-Location
@@ -27,3 +33,4 @@ Write-Host ""
 Write-Host "WiiCompiled translator is ready at:"
 Write-Host "  $WiiCompiled"
 Write-Host "Pinned revision: $PinnedRef"
+if ($SkipTests) { Write-Host "Tests skipped." }
