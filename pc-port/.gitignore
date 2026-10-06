@@ -1,0 +1,12 @@
+# User-provided Nintendo binaries/assets
+game/*
+!game/README.md
+
+# Generated local state
+generated/
+build/
+vendor/
+
+# Python
+__pycache__/
+*.pyc
