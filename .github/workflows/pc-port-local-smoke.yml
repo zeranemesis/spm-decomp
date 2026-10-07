@@ -1,0 +1,75 @@
+name: SPM local boot smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      timeout_seconds:
+        description: "Seconds SPM.exe must survive before the smoke test succeeds"
+        required: false
+        default: "20"
+
+permissions:
+  contents: read
+
+jobs:
+  boot-smoke:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 90
+    env:
+      SPM_GAME_ROOT: C:\Users\BEAVSN\Downloads\Dolphin-x64\paper mario\DATA
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Stage local legally-owned game files
+        shell: pwsh
+        run: |
+          $game = Join-Path $PWD "pc-port\game"
+          New-Item -ItemType Directory -Force -Path $game | Out-Null
+          $dolCandidates = @((Join-Path $env:SPM_GAME_ROOT "sys\main.dol"), (Join-Path $env:SPM_GAME_ROOT "main.dol"))
+          $dol = $dolCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+          if (-not $dol) { throw "main.dol not found under SPM_GAME_ROOT=$env:SPM_GAME_ROOT" }
+          Copy-Item -Force $dol (Join-Path $game "main.dol")
+
+          $relCandidates = @(
+            (Join-Path $env:SPM_GAME_ROOT "files\rel\relF.rel"),
+            (Join-Path $env:SPM_GAME_ROOT "files\rel\relF.bin"),
+            (Join-Path $env:SPM_GAME_ROOT "relF.rel"),
+            (Join-Path $env:SPM_GAME_ROOT "relF.bin")
+          )
+          $rel = $relCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+          if (-not $rel) { throw "relF.rel/relF.bin not found under SPM_GAME_ROOT=$env:SPM_GAME_ROOT" }
+          Copy-Item -Force $rel (Join-Path $game ([IO.Path]::GetFileName($rel)))
+          Write-Host "Local game files staged. They are not uploaded."
+
+      - name: Bootstrap translator
+        shell: pwsh
+        working-directory: pc-port
+        run: .\bootstrap.ps1
+
+      - name: Translate SPM
+        shell: pwsh
+        working-directory: pc-port
+        run: .\translate.ps1
+
+      - name: Build native SPM.exe
+        shell: pwsh
+        working-directory: pc-port
+        run: .\build_native.ps1
+
+      - name: Launch and inspect SPM.exe
+        shell: pwsh
+        run: .\pc-port\scripts\smoke_spm.ps1 -TimeoutSeconds ${{ inputs.timeout_seconds }}
+
+      - name: Upload smoke diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spm-boot-smoke
+          if-no-files-found: warn
+          path: |
+            pc-port/artifacts/smoke/**
+            pc-port/build/native/*.log
+            pc-port/build/native/*.dmp
